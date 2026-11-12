@@ -41,3 +41,12 @@ and merges the content of the latter into the main catalog:
 
     translations = Translations.load('main')
     translations.merge(Translations.load('plugin1'))
+
+A newly constructed ``Translations()`` receiver with no messages or metadata
+and its original default plural rule adopts the first nonempty catalog's
+metadata, character set, and plural rule. This allows a catalog with non-English
+plural rules to initialize a fresh receiver without changing its translations.
+An incoming catalog with no entries does not initialize the receiver; a
+header-only catalog does. Receivers already loaded from MO files, or with
+messages, metadata, a character set, or a custom plural rule, retain their
+configuration. Merging does not change the receiver's domain or fallback chain.

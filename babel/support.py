@@ -425,6 +425,10 @@ class LazyProxy:
         )
 
 
+def _default_plural(n: float | Decimal) -> int:
+    return int(n != 1)
+
+
 class NullTranslations(gettext.NullTranslations):
     if TYPE_CHECKING:
         _info: dict[str, str]
@@ -443,7 +447,7 @@ class NullTranslations(gettext.NullTranslations):
         # is parsed (fp != None). Ensure that they are always present because
         # some *gettext methods (including '.gettext()') rely on the attributes.
         self._catalog: dict[tuple[str, Any] | str, str] = {}
-        self.plural: Callable[[float | Decimal], int] = lambda n: int(n != 1)
+        self.plural: Callable[[float | Decimal], int] = _default_plural
         super().__init__(fp=fp)
         self.files = list(filter(None, [getattr(fp, 'name', None)]))
         self.domain = self.DEFAULT_DOMAIN
@@ -765,12 +769,27 @@ class Translations(NullTranslations, gettext.GNUTranslations):
         """Merge the given translations into the catalog.
 
         Message translations in the specified catalog override any messages
-        with the same identifier in the existing catalog.
+        with the same identifier in the existing catalog. A newly constructed
+        receiver with no messages or metadata and its original default plural
+        rule adopts the first nonempty catalog's metadata, character set, and
+        plural rule. Otherwise, the receiver's configuration is retained.
 
         :param translations: the `Translations` instance with the messages to
                              merge
         """
         if isinstance(translations, gettext.GNUTranslations):
+            if (
+                translations._catalog
+                and not self._catalog
+                and not self._info
+                and self._charset is None
+                and self.plural is _default_plural
+            ):
+                # Initialize an empty receiver with the catalog's decoding and
+                # plural metadata, without changing established catalog rules.
+                self.plural = translations.plural
+                self._charset = translations._charset
+                self._info = translations._info.copy()
             self._catalog.update(translations._catalog)
             if isinstance(translations, Translations):
                 self.files.extend(translations.files)
